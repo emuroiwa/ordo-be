@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens, HasUuids;
 
     /**
      * The attributes that are mass assignable.
@@ -26,6 +27,7 @@ class User extends Authenticatable
         'phone',
         'roles',
         'business_name',
+        'slug',
         'service_category',
         'is_active',
         'avatar',
@@ -111,6 +113,54 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all services belonging to this user.
+     */
+    public function services(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Service::class);
+    }
+
+    /**
+     * Get bookings as a customer.
+     */
+    public function customerBookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'customer_id');
+    }
+
+    /**
+     * Get bookings as a vendor.
+     */
+    public function vendorBookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'vendor_id');
+    }
+
+    /**
+     * Get availability slots for vendor.
+     */
+    public function availabilitySlots(): HasMany
+    {
+        return $this->hasMany(AvailabilitySlot::class, 'vendor_id');
+    }
+
+    /**
+     * Get reviews written by user as a customer.
+     */
+    public function reviewsGiven(): HasMany
+    {
+        return $this->hasMany(BookingReview::class, 'customer_id');
+    }
+
+    /**
+     * Get reviews received by user as a vendor.
+     */
+    public function reviewsReceived(): HasMany
+    {
+        return $this->hasMany(BookingReview::class, 'vendor_id');
+    }
+
+    /**
      * Get unread notifications count.
      */
     public function unreadNotificationsCount(): int
@@ -132,5 +182,39 @@ class User extends Authenticatable
     public function markAllNotificationsAsRead(): void
     {
         $this->notifications()->unread()->update(['read_at' => now()]);
+    }
+
+    /**
+     * Generate unique slug from business name or name.
+     */
+    public function generateSlug(): string
+    {
+        $name = $this->business_name ?: $this->name;
+        $baseSlug = \Illuminate\Support\Str::slug($name);
+        $slug = $baseSlug;
+        $counter = 1;
+
+        while (static::where('slug', $slug)->where('id', '!=', $this->id)->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Get route key name for model binding.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
+    /**
+     * Find user by slug.
+     */
+    public static function findBySlug(string $slug): ?self
+    {
+        return static::where('slug', $slug)->first();
     }
 }

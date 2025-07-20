@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('notifications', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('type'); // e.g., 'booking_confirmed', 'payment_received'
-            $table->morphs('notifiable'); // user_id and user_type (already includes index)
+            $table->uuidMorphs('notifiable'); // user_id and user_type for UUID support
             $table->json('data'); // notification content and metadata
             $table->timestamp('read_at')->nullable();
             $table->string('priority')->default('normal'); // low, normal, high, urgent

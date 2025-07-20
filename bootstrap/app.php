@@ -12,9 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
+        // Remove stateful middleware for pure token-based API authentication
+        // $middleware->api(prepend: [
+        //     \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        // ]);
 
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
@@ -23,5 +24,22 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Ensure API routes return JSON responses
+        $exceptions->render(function (\Throwable $exception, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                // Get appropriate status code
+                $statusCode = method_exists($exception, 'getStatusCode') 
+                    ? $exception->getStatusCode() 
+                    : 500;
+                
+                // Get error message
+                $message = $exception->getMessage() ?: 'An error occurred';
+                
+                return response()->json([
+                    'message' => $message,
+                    'error' => true,
+                    'status' => $statusCode
+                ], $statusCode);
+            }
+        });
     })->create();

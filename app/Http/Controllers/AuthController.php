@@ -34,7 +34,7 @@ class AuthController extends Controller
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['required', 'string', 'in:customer,vendor'],
             'business_name' => ['nullable', 'required_if:roles.*,vendor', 'string', 'max:255'],
-            'service_category' => ['nullable', 'required_if:roles.*,vendor', 'string', 'in:barber,beauty,fitness,home,automotive,events,other'],
+            'service_category' => ['nullable', 'required_if:roles.*,vendor', 'string'],
         ]);
 
         $user = User::create([

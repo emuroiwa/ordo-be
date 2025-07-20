@@ -145,6 +145,116 @@ class NotificationService
     }
 
     /**
+     * Send booking notification based on event type.
+     */
+    public function sendBookingNotification($booking, string $eventType): array
+    {
+        $notifications = [];
+        
+        // Ensure booking is loaded with relationships
+        if (!$booking->relationLoaded('customer')) {
+            $booking->load(['customer', 'vendor', 'service']);
+        }
+        
+        $bookingData = [
+            'id' => $booking->id,
+            'booking_reference' => $booking->booking_reference,
+            'service_name' => $booking->service->title ?? 'Service',
+            'date' => $booking->scheduled_at ? \Carbon\Carbon::parse($booking->scheduled_at)->format('Y-m-d') : 'TBD',
+            'time' => $booking->scheduled_at ? \Carbon\Carbon::parse($booking->scheduled_at)->format('H:i') : 'TBD',
+            'customer_name' => $booking->customer->name ?? $booking->guest_name ?? 'Customer',
+            'vendor_name' => $booking->vendor->name ?? 'Vendor'
+        ];
+        
+        switch ($eventType) {
+            case 'created':
+                // Notify customer (only if they have an account)
+                if ($booking->customer) {
+                    $notifications[] = $this->sendBookingConfirmation($booking->customer, $bookingData);
+                }
+                // Notify vendor about new booking
+                $notifications[] = $this->notify($booking->vendor, 'new_booking', $bookingData, [
+                    'priority' => 'high',
+                    'action_url' => "/dashboard/bookings/{$booking->id}"
+                ]);
+                break;
+                
+            case 'updated':
+                // Notify both parties about update (only if customer has account)
+                if ($booking->customer) {
+                    $notifications[] = $this->notify($booking->customer, 'booking_updated', $bookingData, [
+                        'priority' => 'normal',
+                        'action_url' => "/dashboard/bookings/{$booking->id}"
+                    ]);
+                }
+                $notifications[] = $this->notify($booking->vendor, 'booking_updated', $bookingData, [
+                    'priority' => 'normal',
+                    'action_url' => "/dashboard/bookings/{$booking->id}"
+                ]);
+                break;
+                
+            case 'cancelled':
+                // Use existing cancellation method (only if customer has account)
+                if ($booking->customer) {
+                    $notifications[] = $this->sendBookingCancellation($booking->customer, $bookingData);
+                }
+                $notifications[] = $this->sendBookingCancellation($booking->vendor, $bookingData);
+                break;
+                
+            case 'confirmed':
+                // Notify both parties about confirmation (only if customer has account)
+                if ($booking->customer) {
+                    $notifications[] = $this->notify($booking->customer, 'booking_confirmed', $bookingData, [
+                        'priority' => 'high',
+                        'action_url' => "/dashboard/bookings/{$booking->id}"
+                    ]);
+                }
+                $notifications[] = $this->notify($booking->vendor, 'booking_confirmed', $bookingData, [
+                    'priority' => 'high',
+                    'action_url' => "/dashboard/bookings/{$booking->id}"
+                ]);
+                break;
+                
+            case 'completed':
+                // Notify both parties about completion (only if customer has account)
+                if ($booking->customer) {
+                    $notifications[] = $this->notify($booking->customer, 'booking_completed', $bookingData, [
+                        'priority' => 'normal',
+                        'action_url' => "/dashboard/bookings/{$booking->id}"
+                    ]);
+                }
+                $notifications[] = $this->notify($booking->vendor, 'booking_completed', $bookingData, [
+                    'priority' => 'normal',
+                    'action_url' => "/dashboard/bookings/{$booking->id}"
+                ]);
+                break;
+                
+            case 'rescheduled':
+                // Notify both parties about reschedule (only if customer has account)
+                if ($booking->customer) {
+                    $notifications[] = $this->notify($booking->customer, 'booking_rescheduled', $bookingData, [
+                        'priority' => 'high',
+                        'action_url' => "/dashboard/bookings/{$booking->id}"
+                    ]);
+                }
+                $notifications[] = $this->notify($booking->vendor, 'booking_rescheduled', $bookingData, [
+                    'priority' => 'high',
+                    'action_url' => "/dashboard/bookings/{$booking->id}"
+                ]);
+                break;
+                
+            default:
+                Log::warning('Unknown booking notification event type', [
+                    'event_type' => $eventType,
+                    'booking_id' => $booking->id
+                ]);
+                break;
+        }
+        
+        return $notifications;
+    }
+
+    /**
      * Send profile updated notification.
      */
     public function sendProfileUpdated(User $user): Notification
