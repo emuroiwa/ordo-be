@@ -15,7 +15,7 @@ class ServiceRepository
      */
     public function getServicesWithFilters(array $filters, int $perPage = 12): LengthAwarePaginator
     {
-        $query = Service::with(['category', 'user:id,name', 'serviceImages' => function ($q) {
+        $query = Service::with(['category', 'user:id,name,slug', 'serviceImages' => function ($q) {
             $q->where('is_primary', true)->processed();
         }])
         ->active()
@@ -23,7 +23,7 @@ class ServiceRepository
             'id', 'user_id', 'category_id', 'title', 'short_description',
             'price_type', 'base_price', 'max_price', 'currency',
             'location_type', 'latitude', 'longitude', 'is_featured',
-            'average_rating', 'review_count', 'created_at'
+            'average_rating', 'review_count', 'slug', 'created_at'
         ]);
 
         $this->applyFilters($query, $filters);

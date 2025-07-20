@@ -189,4 +189,58 @@ class ServiceController extends Controller
 
         return response()->json($categories);
     }
+
+    /**
+     * Get available slots for a specific service.
+     */
+    public function availableSlots(Request $request, string $userSlug, string $serviceSlug): JsonResponse
+    {
+        $request->validate([
+            'start_date' => 'sometimes|date|after_or_equal:today',
+            'end_date' => 'sometimes|date|after:start_date',
+            'duration' => 'sometimes|integer|min:15|max:480'
+        ]);
+
+        try {
+            $service = $this->serviceBusinessService->findServiceBySlug($userSlug, $serviceSlug);
+
+            if (!$service) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Service not found'
+                ], 404);
+            }
+
+            // Default to next 7 days if no date range provided
+            $startDate = $request->get('start_date', now()->toDateString());
+            $endDate = $request->get('end_date', now()->addDays(7)->toDateString());
+            $duration = $request->get('duration', $service->duration_minutes ?? 60);
+
+            $availableSlots = $this->serviceBusinessService->getAvailableSlots(
+                $service,
+                $startDate,
+                $endDate,
+                $duration
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $availableSlots,
+                'meta' => [
+                    'service_id' => $service->id,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'duration_minutes' => $duration,
+                    'total_slots' => count($availableSlots)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get available slots',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

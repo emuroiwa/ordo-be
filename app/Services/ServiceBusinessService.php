@@ -278,4 +278,57 @@ class ServiceBusinessService
         // Return rating distribution (1-5 stars)
         return [];
     }
+
+    /**
+     * Get available slots for a service within a date range.
+     */
+    public function getAvailableSlots(Service $service, string $startDate, string $endDate, int $duration): array
+    {
+        // For now, return mock data. In a real implementation, this would:
+        // 1. Get the vendor's availability for the date range
+        // 2. Generate time slots based on working hours
+        // 3. Filter out already booked slots
+        // 4. Consider service duration and buffer times
+        
+        $availableSlots = [];
+        $currentDate = \Carbon\Carbon::parse($startDate);
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        // Mock availability: 9 AM to 5 PM, Monday to Friday
+        while ($currentDate->lte($endDateCarbon)) {
+            // Skip weekends for now
+            if ($currentDate->isWeekday()) {
+                $daySlots = [];
+                
+                // Generate slots from 9 AM to 5 PM with 1-hour intervals
+                for ($hour = 9; $hour < 17; $hour++) {
+                    $slotTime = sprintf('%02d:00', $hour);
+                    $slotDateTime = $currentDate->format('Y-m-d') . 'T' . $slotTime . ':00';
+                    
+                    $daySlots[] = [
+                        'id' => uniqid(),
+                        'date' => $currentDate->format('Y-m-d'),
+                        'time' => $slotTime,
+                        'datetime' => $slotDateTime,
+                        'available' => true,
+                        'duration_minutes' => $duration
+                    ];
+                }
+                
+                if (!empty($daySlots)) {
+                    $availableSlots[] = [
+                        'date' => $currentDate->format('Y-m-d'),
+                        'day_name' => $currentDate->format('l'),
+                        'formatted_date' => $currentDate->format('M j'),
+                        'slots' => $daySlots,
+                        'has_slots' => true
+                    ];
+                }
+            }
+            
+            $currentDate->addDay();
+        }
+        
+        return $availableSlots;
+    }
 }

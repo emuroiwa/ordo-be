@@ -30,6 +30,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/services/search', [ServiceController::class, 'search']);
     Route::get('/services/{userSlug}/{serviceSlug}', [ServiceController::class, 'show'])
         ->where(['userSlug' => '[a-z0-9\-]+', 'serviceSlug' => '[a-z0-9\-]+']);
+    Route::get('/services/{userSlug}/{serviceSlug}/available-slots', [ServiceController::class, 'availableSlots'])
+        ->where(['userSlug' => '[a-z0-9\-]+', 'serviceSlug' => '[a-z0-9\-]+']);
 
     // Service categories
     Route::get('/service-categories', [ServiceController::class, 'categories']);
