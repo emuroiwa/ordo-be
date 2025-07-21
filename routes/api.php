@@ -9,6 +9,11 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Api\AvailabilityController;
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\EarningsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReviewsController;
+use App\Http\Controllers\PaymentController;
 
 // API Version 1
 Route::prefix('v1')->group(function () {
@@ -48,6 +53,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/logout-all', [AuthController::class, 'logoutAll']);
         Route::post('/refresh-token', [AuthController::class, 'refreshToken']);
+        
+        // Dashboard route
+        Route::get('/dashboard', [DashboardController::class, 'index']);
 
         // Profile management routes
         Route::prefix('profile')->group(function () {
@@ -65,9 +73,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [ServiceController::class, 'store'])
                 ->middleware('throttle:60,1'); // 60 requests per minute
             Route::get('/{id}/edit', [ServiceController::class, 'showById']); // For editing
-            Route::put('/{service}', [ServiceController::class, 'update'])
+            Route::put('/{id}', [ServiceController::class, 'update'])
                 ->middleware('throttle:60,1'); // 60 requests per minute
-            Route::delete('/{service}', [ServiceController::class, 'destroy'])
+            Route::delete('/{id}', [ServiceController::class, 'destroy'])
                 ->middleware('throttle:60,1'); // 60 requests per minute
             Route::get('/{service}/analytics', [ServiceController::class, 'analytics']);
         });
@@ -94,6 +102,44 @@ Route::prefix('v1')->group(function () {
             Route::get('/time-slots', [AvailabilityController::class, 'getTimeSlots']);
             Route::get('/weekly-overview', [AvailabilityController::class, 'getWeeklyOverview']);
             Route::post('/bulk-update', [AvailabilityController::class, 'bulkUpdate']);
+        });
+        
+        // Analytics routes
+        Route::prefix('analytics')->group(function () {
+            Route::get('/', [AnalyticsController::class, 'index']);
+            Route::get('/summary', [AnalyticsController::class, 'summary']);
+            Route::post('/export', [AnalyticsController::class, 'export']);
+        });
+        
+        // Earnings routes
+        Route::prefix('earnings')->group(function () {
+            Route::get('/', [EarningsController::class, 'index']);
+            Route::get('/summary', [EarningsController::class, 'summary']);
+            Route::get('/transactions', [EarningsController::class, 'transactions']);
+            Route::get('/payout-methods', [EarningsController::class, 'payoutMethods']);
+            Route::post('/request-payout', [EarningsController::class, 'requestPayout']);
+        });
+        
+        // Reviews routes
+        Route::prefix('reviews')->group(function () {
+            Route::get('/', [ReviewsController::class, 'index']);
+            Route::get('/analytics', [ReviewsController::class, 'analytics']);
+            Route::get('/services', [ReviewsController::class, 'services']);
+            Route::post('/{review}/respond', [ReviewsController::class, 'respond']);
+            Route::put('/{review}/response', [ReviewsController::class, 'updateResponse']);
+            Route::delete('/{review}/response', [ReviewsController::class, 'deleteResponse']);
+        });
+        
+        // Payment routes
+        Route::prefix('payments')->group(function () {
+            Route::get('/', [PaymentController::class, 'index']);
+            Route::get('/history', [PaymentController::class, 'history']);
+            Route::get('/transactions', [PaymentController::class, 'transactions']);
+            Route::get('/analytics', [PaymentController::class, 'analytics']);
+            Route::get('/payment-methods', [PaymentController::class, 'paymentMethods']);
+            Route::post('/payment-methods', [PaymentController::class, 'addPaymentMethod']);
+            Route::put('/payment-methods/{paymentMethod}/default', [PaymentController::class, 'setDefaultPaymentMethod']);
+            Route::delete('/payment-methods/{paymentMethod}', [PaymentController::class, 'deletePaymentMethod']);
         });
         
         // Notification routes

@@ -110,11 +110,24 @@ class ServiceController extends Controller
     /**
      * Update the specified service.
      */
-    public function update(UpdateServiceRequest $request, Service $service): JsonResponse
+    public function update(UpdateServiceRequest $request, string $id): JsonResponse
     {
-        $this->authorize('update', $service);
-
         try {
+            $service = $this->serviceBusinessService->findServiceById($id);
+
+            if (!$service) {
+                return response()->json([
+                    'message' => 'Service not found'
+                ], 404);
+            }
+
+            // Check if service belongs to current user
+            if ($service->user_id !== auth()->id()) {
+                return response()->json([
+                    'message' => 'Unauthorized to update this service'
+                ], 403);
+            }
+
             $validated = $request->validated();
             $images = $request->hasFile('images') ? $request->file('images') : null;
             
@@ -136,11 +149,24 @@ class ServiceController extends Controller
     /**
      * Remove the specified service.
      */
-    public function destroy(Service $service): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
-        $this->authorize('delete', $service);
-
         try {
+            $service = $this->serviceBusinessService->findServiceById($id);
+
+            if (!$service) {
+                return response()->json([
+                    'message' => 'Service not found'
+                ], 404);
+            }
+
+            // Check if service belongs to current user
+            if ($service->user_id !== auth()->id()) {
+                return response()->json([
+                    'message' => 'Unauthorized to delete this service'
+                ], 403);
+            }
+
             $this->serviceBusinessService->deleteService($service);
 
             return response()->json([

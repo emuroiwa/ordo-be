@@ -248,35 +248,451 @@ class ServiceBusinessService
         Cache::tags(['services'])->flush();
     }
 
-    // Analytics helper methods (simplified - implement based on your analytics needs)
+    /**
+     * Get comprehensive user analytics.
+     */
+    public function getUserAnalytics(string $userId, array $dateRange = []): array
+    {
+        $startDate = $dateRange['start'] ?? now()->subDays(30)->toDateString();
+        $endDate = $dateRange['end'] ?? now()->toDateString();
+        
+        return Cache::remember(
+            "user_analytics_{$userId}_{$startDate}_{$endDate}",
+            now()->addMinutes(30),
+            function () use ($userId, $startDate, $endDate) {
+                $services = Service::where('user_id', $userId)->get();
+                
+                // Overall metrics
+                $totalViews = $services->sum('view_count');
+                $totalBookings = $services->sum('booking_count');
+                $totalRevenue = $this->calculateTotalRevenue($services, $startDate, $endDate);
+                $avgRating = $services->where('review_count', '>', 0)->avg('average_rating') ?: 0;
+                
+                // Trending data for charts
+                $viewsTrend = $this->getViewsTrendData($services, $startDate, $endDate);
+                $bookingsTrend = $this->getBookingsTrendData($services, $startDate, $endDate);
+                $revenueTrend = $this->getRevenueTrendData($services, $startDate, $endDate);
+                
+                // Service performance
+                $topServices = $this->getTopPerformingServices($services);
+                $serviceBreakdown = $this->getServiceBreakdown($services);
+                
+                return [
+                    'overview' => [
+                        'total_services' => $services->count(),
+                        'active_services' => $services->where('status', 'active')->count(),
+                        'total_views' => $totalViews,
+                        'total_bookings' => $totalBookings,
+                        'total_revenue' => $totalRevenue,
+                        'average_rating' => round($avgRating, 1),
+                        'conversion_rate' => $totalViews > 0 ? round(($totalBookings / $totalViews) * 100, 2) : 0,
+                    ],
+                    'trends' => [
+                        'views' => $viewsTrend,
+                        'bookings' => $bookingsTrend,
+                        'revenue' => $revenueTrend,
+                    ],
+                    'services' => [
+                        'top_performing' => $topServices,
+                        'breakdown' => $serviceBreakdown,
+                    ],
+                    'period' => [
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                    ],
+                ];
+            }
+        );
+    }
+
+    // Analytics helper methods
     private function getMonthlyViews(Service $service): int
     {
-        // Implement based on your analytics tracking
-        return 0;
+        // Mock data - in real app, query from analytics/tracking table
+        return rand(50, 500);
     }
 
     private function getViewsTrend(Service $service): array
     {
-        // Return trend data for charts
-        return [];
+        // Mock trend data for last 30 days
+        $trend = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $trend[] = [
+                'date' => $date,
+                'views' => rand(5, 50),
+            ];
+        }
+        return $trend;
     }
 
     private function getMonthlyBookings(Service $service): int
     {
-        // Implement based on your booking system
-        return 0;
+        // Mock data - in real app, query from bookings table
+        return rand(5, 25);
     }
 
     private function getRevenue(Service $service): float
     {
-        // Calculate total revenue from bookings
-        return 0.0;
+        // Mock data - in real app, calculate from completed bookings
+        return round(rand(500, 5000) / 100, 2) * 100;
     }
 
     private function getRatingDistribution(Service $service): array
     {
-        // Return rating distribution (1-5 stars)
-        return [];
+        // Mock rating distribution
+        return [
+            '5' => rand(40, 60),
+            '4' => rand(20, 30),
+            '3' => rand(5, 15),
+            '2' => rand(2, 8),
+            '1' => rand(0, 5),
+        ];
+    }
+
+    private function calculateTotalRevenue(Collection $services, string $startDate, string $endDate): float
+    {
+        // Mock total revenue calculation
+        return $services->sum(fn($service) => rand(100, 1000)) / 10;
+    }
+
+    private function getViewsTrendData(Collection $services, string $startDate, string $endDate): array
+    {
+        $trend = [];
+        $currentDate = \Carbon\Carbon::parse($startDate);
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        while ($currentDate->lte($endDateCarbon)) {
+            $trend[] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'value' => rand(20, 200),
+                'label' => $currentDate->format('M j'),
+            ];
+            $currentDate->addDay();
+        }
+        
+        return $trend;
+    }
+
+    private function getBookingsTrendData(Collection $services, string $startDate, string $endDate): array
+    {
+        $trend = [];
+        $currentDate = \Carbon\Carbon::parse($startDate);
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        while ($currentDate->lte($endDateCarbon)) {
+            $trend[] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'value' => rand(1, 15),
+                'label' => $currentDate->format('M j'),
+            ];
+            $currentDate->addDay();
+        }
+        
+        return $trend;
+    }
+
+    private function getRevenueTrendData(Collection $services, string $startDate, string $endDate): array
+    {
+        $trend = [];
+        $currentDate = \Carbon\Carbon::parse($startDate);
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        while ($currentDate->lte($endDateCarbon)) {
+            $trend[] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'value' => rand(50, 500),
+                'label' => $currentDate->format('M j'),
+            ];
+            $currentDate->addDay();
+        }
+        
+        return $trend;
+    }
+
+    private function getTopPerformingServices(Collection $services): array
+    {
+        return $services
+            ->sortByDesc('booking_count')
+            ->take(5)
+            ->map(function ($service) {
+                return [
+                    'id' => $service->id,
+                    'title' => $service->title,
+                    'bookings' => $service->booking_count,
+                    'views' => $service->view_count,
+                    'revenue' => rand(100, 2000),
+                    'rating' => $service->average_rating,
+                    'conversion_rate' => $service->view_count > 0 ? 
+                        round(($service->booking_count / $service->view_count) * 100, 2) : 0,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function getServiceBreakdown(Collection $services): array
+    {
+        $statusBreakdown = $services->groupBy('status')->map->count();
+        $categoryBreakdown = $services->groupBy('category.name')->map->count();
+        
+        return [
+            'by_status' => $statusBreakdown->toArray(),
+            'by_category' => $categoryBreakdown->toArray(),
+        ];
+    }
+
+    /**
+     * Get comprehensive earnings data for a user.
+     */
+    public function getUserEarnings(string $userId, array $dateRange = []): array
+    {
+        $startDate = $dateRange['start'] ?? now()->subDays(30)->toDateString();
+        $endDate = $dateRange['end'] ?? now()->toDateString();
+        
+        return Cache::remember(
+            "user_earnings_{$userId}_{$startDate}_{$endDate}",
+            now()->addMinutes(15),
+            function () use ($userId, $startDate, $endDate) {
+                $services = Service::where('user_id', $userId)->get();
+                
+                // Calculate earnings metrics
+                $totalEarnings = $this->calculateTotalEarnings($services, $startDate, $endDate);
+                $availableBalance = $this->calculateAvailableBalance($userId);
+                $pendingPayouts = $this->calculatePendingPayouts($userId);
+                $totalPayouts = $this->calculateTotalPayouts($userId);
+                
+                // Transaction history
+                $recentTransactions = $this->getRecentTransactions($userId, 10);
+                $earningsTrend = $this->getEarningsTrendData($services, $startDate, $endDate);
+                
+                // Service earnings breakdown
+                $serviceEarnings = $this->getServiceEarningsBreakdown($services, $startDate, $endDate);
+                $monthlyBreakdown = $this->getMonthlyEarningsBreakdown($userId, $startDate, $endDate);
+                
+                return [
+                    'overview' => [
+                        'total_earnings' => $totalEarnings,
+                        'available_balance' => $availableBalance,
+                        'pending_payouts' => $pendingPayouts,
+                        'total_payouts' => $totalPayouts,
+                        'earnings_this_month' => $this->getEarningsThisMonth($userId),
+                        'growth_percentage' => $this->calculateEarningsGrowth($userId),
+                        'average_order_value' => $this->calculateAverageOrderValue($services),
+                        'completion_rate' => $this->calculateCompletionRate($userId),
+                    ],
+                    'trends' => [
+                        'earnings' => $earningsTrend,
+                        'monthly' => $monthlyBreakdown,
+                    ],
+                    'transactions' => [
+                        'recent' => $recentTransactions,
+                        'total_count' => $this->getTotalTransactionCount($userId),
+                    ],
+                    'services' => [
+                        'earnings_breakdown' => $serviceEarnings,
+                        'top_earning' => $this->getTopEarningServices($services),
+                    ],
+                    'period' => [
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                    ],
+                ];
+            }
+        );
+    }
+
+    /**
+     * Process a payout request.
+     */
+    public function requestPayout(string $userId, float $amount, array $payoutDetails = []): array
+    {
+        $availableBalance = $this->calculateAvailableBalance($userId);
+        
+        if ($amount > $availableBalance) {
+            throw new \Exception('Insufficient balance for payout request');
+        }
+        
+        if ($amount < 10) { // Minimum payout amount
+            throw new \Exception('Minimum payout amount is R10');
+        }
+        
+        // In a real implementation, this would create a payout record
+        // and integrate with payment processors like PayFast, Stripe, etc.
+        
+        return [
+            'success' => true,
+            'payout_id' => 'payout_' . uniqid(),
+            'amount' => $amount,
+            'processing_fee' => round($amount * 0.025, 2), // 2.5% fee
+            'net_amount' => round($amount * 0.975, 2),
+            'estimated_arrival' => now()->addBusinessDays(3)->toDateString(),
+            'status' => 'processing',
+        ];
+    }
+
+    // Earnings calculation helper methods
+    private function calculateTotalEarnings(Collection $services, string $startDate, string $endDate): float
+    {
+        // Mock calculation - in real app, sum from completed bookings
+        return $services->sum(function ($service) {
+            return $service->booking_count * $service->base_price * 0.85; // 15% platform fee
+        });
+    }
+
+    private function calculateAvailableBalance(string $userId): float
+    {
+        // Mock available balance - in real app, calculate from settled transactions
+        return rand(1000, 10000) / 10;
+    }
+
+    private function calculatePendingPayouts(string $userId): float
+    {
+        // Mock pending payouts
+        return rand(200, 2000) / 10;
+    }
+
+    private function calculateTotalPayouts(string $userId): float
+    {
+        // Mock total payouts - in real app, sum from payout history
+        return rand(5000, 50000) / 10;
+    }
+
+    private function getEarningsThisMonth(string $userId): float
+    {
+        // Mock this month's earnings
+        return rand(500, 5000) / 10;
+    }
+
+    private function calculateEarningsGrowth(string $userId): float
+    {
+        // Mock growth percentage
+        return rand(-20, 50) / 10;
+    }
+
+    private function calculateAverageOrderValue(Collection $services): float
+    {
+        if ($services->isEmpty()) return 0;
+        return $services->avg('base_price');
+    }
+
+    private function calculateCompletionRate(string $userId): float
+    {
+        // Mock completion rate
+        return rand(85, 98) / 100;
+    }
+
+    private function getRecentTransactions(string $userId, int $limit = 10): array
+    {
+        $transactions = [];
+        for ($i = 0; $i < $limit; $i++) {
+            $transactions[] = [
+                'id' => 'txn_' . uniqid(),
+                'type' => rand(0, 1) ? 'earning' : 'payout',
+                'amount' => rand(50, 500),
+                'description' => $this->getRandomTransactionDescription(),
+                'status' => ['completed', 'pending', 'processing'][rand(0, 2)],
+                'date' => now()->subDays(rand(0, 30))->toDateString(),
+                'service_name' => 'Service ' . rand(1, 5),
+            ];
+        }
+        return $transactions;
+    }
+
+    private function getEarningsTrendData(Collection $services, string $startDate, string $endDate): array
+    {
+        $trend = [];
+        $currentDate = \Carbon\Carbon::parse($startDate);
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        while ($currentDate->lte($endDateCarbon)) {
+            $trend[] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'value' => rand(100, 1000),
+                'label' => $currentDate->format('M j'),
+            ];
+            $currentDate->addDay();
+        }
+        
+        return $trend;
+    }
+
+    private function getServiceEarningsBreakdown(Collection $services, string $startDate, string $endDate): array
+    {
+        return $services->map(function ($service) {
+            return [
+                'service_id' => $service->id,
+                'service_name' => $service->title,
+                'bookings' => $service->booking_count,
+                'gross_earnings' => $service->booking_count * $service->base_price,
+                'net_earnings' => $service->booking_count * $service->base_price * 0.85,
+                'commission' => $service->booking_count * $service->base_price * 0.15,
+            ];
+        })->sortByDesc('net_earnings')->take(10)->values()->toArray();
+    }
+
+    private function getMonthlyEarningsBreakdown(string $userId, string $startDate, string $endDate): array
+    {
+        $breakdown = [];
+        $currentDate = \Carbon\Carbon::parse($startDate)->startOfMonth();
+        $endDateCarbon = \Carbon\Carbon::parse($endDate);
+        
+        while ($currentDate->lte($endDateCarbon)) {
+            $breakdown[] = [
+                'month' => $currentDate->format('Y-m'),
+                'label' => $currentDate->format('M Y'),
+                'earnings' => rand(1000, 8000),
+                'bookings' => rand(10, 50),
+                'commission' => rand(150, 1200),
+            ];
+            $currentDate->addMonth();
+        }
+        
+        return $breakdown;
+    }
+
+    private function getTopEarningServices(Collection $services): array
+    {
+        return $services
+            ->sortByDesc(function ($service) {
+                return $service->booking_count * $service->base_price;
+            })
+            ->take(5)
+            ->map(function ($service) {
+                $grossEarnings = $service->booking_count * $service->base_price;
+                return [
+                    'id' => $service->id,
+                    'title' => $service->title,
+                    'bookings' => $service->booking_count,
+                    'gross_earnings' => $grossEarnings,
+                    'net_earnings' => $grossEarnings * 0.85,
+                    'commission_rate' => 15,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function getTotalTransactionCount(string $userId): int
+    {
+        // Mock total transaction count
+        return rand(50, 500);
+    }
+
+    private function getRandomTransactionDescription(): string
+    {
+        $descriptions = [
+            'Payment for Hair Styling Service',
+            'Payout to Bank Account',
+            'Booking Payment Received',
+            'Weekly Earnings Transfer',
+            'Service Completion Payment',
+            'Customer Tip Received',
+            'Refund Processed',
+            'Bonus Payment',
+        ];
+        
+        return $descriptions[array_rand($descriptions)];
     }
 
     /**
