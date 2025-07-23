@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Service;
 use App\Models\User;
+use App\Models\Favorite;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -165,6 +166,11 @@ class DashboardController extends Controller
     private function getVendorRecentActivities($user, $services): array
     {
         $activities = [];
+        
+        // If vendor has no services, return empty activities
+        if ($services->isEmpty()) {
+            return [];
+        }
         
         // Mock recent activities based on services
         $activityTypes = [
@@ -354,34 +360,22 @@ class DashboardController extends Controller
 
     private function getFavoriteServices($user): array
     {
-        // In a real app, you'd fetch from a favorites/bookmarks table
-        // For now, get services the user has paid for (indicating preference)
-        $favoriteServiceIds = \App\Models\Payment::forCustomer($user->id)
-            ->completed()
-            ->select('service_id')
-            ->groupBy('service_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('service_id')
-            ->take(4);
+        // Get user's favorite services
+        $favoriteServices = \App\Models\Favorite::where('user_id', $user->id)
+            ->with(['service', 'service.user'])
+            ->latest()
+            ->limit(4)
+            ->get();
 
         $favorites = [];
-        if ($favoriteServiceIds->isNotEmpty()) {
-            $services = \App\Models\Service::whereIn('id', $favoriteServiceIds)
-                ->with('user')
-                ->get();
-                
-            foreach ($services as $service) {
-                $avgAmount = \App\Models\Payment::forCustomer($user->id)
-                    ->where('service_id', $service->id)
-                    ->completed()
-                    ->avg('amount');
-                    
+        foreach ($favoriteServices as $favorite) {
+            if ($favorite->service) {
                 $favorites[] = [
-                    'id' => $service->id,
-                    'title' => $service->title,
-                    'provider' => $service->user->name ?? 'Provider',
-                    'rating' => $service->average_rating ?? 4.5,
-                    'price' => $avgAmount ?? $service->base_price,
+                    'id' => $favorite->service->id,
+                    'title' => $favorite->service->title,
+                    'provider' => $favorite->service->user->name ?? 'Provider',
+                    'rating' => $favorite->service->average_rating ?? 4.5,
+                    'price' => $favorite->service->base_price,
                 ];
             }
         }
@@ -448,14 +442,7 @@ class DashboardController extends Controller
 
     private function getFavoriteServicesCount($user): int
     {
-        // In a real app, you'd have a favorites table
-        // For now, count unique services the customer has paid for multiple times
-        return \App\Models\Payment::forCustomer($user->id)
-            ->completed()
-            ->select('service_id')
-            ->groupBy('service_id')
-            ->havingRaw('COUNT(*) > 1')
-            ->count();
+        return \App\Models\Favorite::where('user_id', $user->id)->count();
     }
 
     private function formatTimeAgo($hours): string

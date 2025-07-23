@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'yoco' => [
+        'api_url' => env('YOCO_API_URL', 'https://api.yoco.com/v1'),
+        'secret_key' => env('YOCO_SECRET_KEY'),
+        'public_key' => env('YOCO_PUBLIC_KEY'),
+        'webhook_secret' => env('YOCO_WEBHOOK_SECRET'),
+        'webhook_url' => env('YOCO_WEBHOOK_URL'),
+    ],
+
 ];

@@ -14,6 +14,11 @@ use App\Http\Controllers\EarningsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\YocoPaymentController;
+use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\HealthController;
+use App\Http\Controllers\VendorVerificationController;
+use App\Http\Controllers\Admin\VendorVerificationController as AdminVendorVerificationController;
 
 // API Version 1
 Route::prefix('v1')->group(function () {
@@ -41,11 +46,23 @@ Route::prefix('v1')->group(function () {
     // Service categories
     Route::get('/service-categories', [ServiceController::class, 'categories']);
 
+    // Health check endpoints
+    Route::get('/health', [HealthController::class, 'check']);
+    Route::get('/health/simple', [HealthController::class, 'simple']);
+    Route::get('/health/ready', [HealthController::class, 'ready']);
+
     // Public booking routes (supports both authenticated and guest users)
     Route::post('/bookings', [BookingController::class, 'store'])
         ->middleware('throttle:10,1'); // 10 booking attempts per minute
     Route::get('/bookings/{booking}/public', [BookingController::class, 'showPublic'])
         ->middleware('throttle:60,1'); // 60 requests per minute
+
+    // Public Yoco payment routes
+    Route::prefix('payments/yoco')->group(function () {
+        Route::get('/public-key', [YocoPaymentController::class, 'getPublicKey']);
+        Route::post('/webhook', [YocoPaymentController::class, 'handleWebhook'])
+            ->middleware('throttle:60,1'); // 60 webhook requests per minute
+    });
 
     // Protected auth routes
     Route::middleware(['auth:sanctum'])->group(function () {
@@ -67,11 +84,33 @@ Route::prefix('v1')->group(function () {
             Route::get('/stats', [ProfileController::class, 'stats']);
         });
         
-        // Service management routes
+        // Vendor verification routes
+        Route::prefix('vendor/verification')->name('vendor.verification.')->group(function () {
+            Route::get('/status', [VendorVerificationController::class, 'status'])->name('status');
+            Route::post('/start', [VendorVerificationController::class, 'start'])->name('start');
+            Route::get('/requirements', [VendorVerificationController::class, 'requirements'])->name('requirements');
+            Route::get('/documents', [VendorVerificationController::class, 'documents'])->name('documents');
+            
+            // Document upload routes
+            Route::post('/identity-document', [VendorVerificationController::class, 'uploadIdentityDocument'])
+                ->name('upload-identity');
+            Route::post('/liveness-photo', [VendorVerificationController::class, 'uploadLivenessPhoto'])
+                ->name('upload-liveness');
+            Route::post('/business-document', [VendorVerificationController::class, 'uploadBusinessDocument'])
+                ->name('upload-business');
+            
+            Route::post('/submit', [VendorVerificationController::class, 'submitForReview'])->name('submit');
+        });
+
+        // Email verification route (accessible via signed URL)
+        Route::get('/vendor/verification/{id}/verify-email/{token}', [VendorVerificationController::class, 'verifyEmail'])
+            ->name('vendor.verification.verify-email');
+
+        // Service management routes (require vendor verification for vendors)
         Route::prefix('services')->group(function () {
             Route::get('/my-services', [ServiceController::class, 'myServices']);
             Route::post('/', [ServiceController::class, 'store'])
-                ->middleware('throttle:60,1'); // 60 requests per minute
+                ->middleware(['vendor.verified', 'throttle:60,1']); // 60 requests per minute
             Route::get('/{id}/edit', [ServiceController::class, 'showById']); // For editing
             Route::put('/{id}', [ServiceController::class, 'update'])
                 ->middleware('throttle:60,1'); // 60 requests per minute
@@ -140,6 +179,26 @@ Route::prefix('v1')->group(function () {
             Route::post('/payment-methods', [PaymentController::class, 'addPaymentMethod']);
             Route::put('/payment-methods/{paymentMethod}/default', [PaymentController::class, 'setDefaultPaymentMethod']);
             Route::delete('/payment-methods/{paymentMethod}', [PaymentController::class, 'deletePaymentMethod']);
+            
+            // Yoco payment integration
+            Route::prefix('yoco')->group(function () {
+                Route::post('/bookings/{booking}/create-intent', [YocoPaymentController::class, 'createPaymentIntent']);
+                Route::post('/confirm', [YocoPaymentController::class, 'confirmPayment']);
+                Route::get('/{payment}/status', [YocoPaymentController::class, 'getPaymentStatus']);
+                Route::post('/{payment}/refund', [YocoPaymentController::class, 'createRefund']);
+            });
+        });
+
+        // Favorites routes
+        Route::prefix('favorites')->group(function () {
+            Route::get('/', [FavoriteController::class, 'index']);
+            Route::post('/', [FavoriteController::class, 'store']);
+            Route::delete('/{favorite}', [FavoriteController::class, 'destroy']);
+            Route::post('/toggle', [FavoriteController::class, 'toggle']);
+            Route::get('/check/{service}', [FavoriteController::class, 'check']);
+            Route::post('/bulk-delete', [FavoriteController::class, 'bulkDelete']);
+            Route::post('/clear', [FavoriteController::class, 'clear']);
+            Route::get('/count', [FavoriteController::class, 'count']);
         });
         
         // Notification routes
@@ -181,6 +240,19 @@ Route::prefix('v1')->group(function () {
                 ]);
                 
                 return response()->json(['message' => 'Sample notifications created']);
+            });
+        });
+        
+        // Admin routes (require admin role)
+        Route::middleware(['role:admin'])->prefix('admin')->group(function () {
+            // Vendor verification management
+            Route::prefix('vendor-verifications')->group(function () {
+                Route::get('/', [AdminVendorVerificationController::class, 'index']);
+                Route::get('/statistics', [AdminVendorVerificationController::class, 'statistics']);
+                Route::get('/{id}', [AdminVendorVerificationController::class, 'show']);
+                Route::post('/{id}/approve', [AdminVendorVerificationController::class, 'approve']);
+                Route::post('/{id}/reject', [AdminVendorVerificationController::class, 'reject']);
+                Route::post('/bulk-approve', [AdminVendorVerificationController::class, 'bulkApprove']);
             });
         });
     });

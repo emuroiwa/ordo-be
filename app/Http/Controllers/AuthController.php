@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\VendorVerificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
@@ -49,6 +51,27 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
         
+        // Generate slug for vendor users
+        if ($user->isVendor()) {
+            $user->update(['slug' => $user->generateSlug()]);
+            
+            // Start vendor verification process
+            try {
+                $verificationService = new VendorVerificationService(
+                    new NotificationService(),
+                    new \App\Services\EmailVerificationService(),
+                    new \App\Services\IdentityVerificationService(),
+                    new \App\Services\LivenessVerificationService()
+                );
+                $verificationService->startVerification($user);
+            } catch (\Exception $e) {
+                Log::error('Failed to start vendor verification', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         // Send welcome notification
         $notificationService = new NotificationService();
         $notificationService->sendWelcomeNotification($user);

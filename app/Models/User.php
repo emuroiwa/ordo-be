@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -26,11 +27,20 @@ class User extends Authenticatable
         'password',
         'phone',
         'roles',
+        'vendor_verification_status',
         'business_name',
+        'business_registration_number',
+        'tax_identification_number',
+        'business_address',
+        'business_description',
         'slug',
         'service_category',
         'is_active',
         'avatar',
+        'email_verified',
+        'identity_verified',
+        'liveness_verified',
+        'business_verified',
     ];
 
     /**
@@ -53,10 +63,17 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'vendor_verified_at' => 'datetime',
+            'verification_reminder_sent_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
             'roles' => 'array',
+            'business_address' => 'array',
             'is_active' => 'boolean',
+            'email_verified' => 'boolean',
+            'identity_verified' => 'boolean',
+            'liveness_verified' => 'boolean',
+            'business_verified' => 'boolean',
         ];
     }
 
@@ -90,6 +107,46 @@ class User extends Authenticatable
     public function isCustomer(): bool
     {
         return $this->hasRole('customer');
+    }
+
+    /**
+     * Check if vendor is verified.
+     */
+    public function isVendorVerified(): bool
+    {
+        return $this->vendor_verification_status === 'approved';
+    }
+
+    /**
+     * Check if vendor verification is pending.
+     */
+    public function isVendorVerificationPending(): bool
+    {
+        return in_array($this->vendor_verification_status, ['pending', 'in_progress']);
+    }
+
+    /**
+     * Check if vendor can accept bookings.
+     */
+    public function canAcceptBookings(): bool
+    {
+        return $this->isVendor() && $this->isVendorVerified() && $this->is_active;
+    }
+
+    /**
+     * Get verification status display name.
+     */
+    public function getVerificationStatusDisplayAttribute(): string
+    {
+        return match($this->vendor_verification_status) {
+            'unverified' => 'Not Started',
+            'pending' => 'Pending',
+            'in_progress' => 'In Progress',
+            'approved' => 'Verified',
+            'rejected' => 'Rejected',
+            'suspended' => 'Suspended',
+            default => 'Unknown'
+        };
     }
 
     /**
@@ -158,6 +215,30 @@ class User extends Authenticatable
     public function reviewsReceived(): HasMany
     {
         return $this->hasMany(BookingReview::class, 'vendor_id');
+    }
+
+    /**
+     * Get user's favorite services.
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
+     * Get vendor verification record.
+     */
+    public function vendorVerification(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(VendorVerification::class);
+    }
+
+    /**
+     * Get verification documents.
+     */
+    public function verificationDocuments(): HasMany
+    {
+        return $this->hasMany(VerificationDocument::class);
     }
 
     /**

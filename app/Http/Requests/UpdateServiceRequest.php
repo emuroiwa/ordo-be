@@ -30,11 +30,7 @@ class UpdateServiceRequest extends FormRequest
             'currency' => 'sometimes|required|string|size:3|in:ZAR,USD,EUR,GBP',
             'duration_minutes' => 'nullable|integer|min:15|max:1440',
             'location_type' => 'sometimes|required|in:client_location,service_location,online',
-            'address' => 'nullable|array',
-            'address.city' => 'required_unless:location_type,online|string|max:100',
-            'address.province' => 'required_unless:location_type,online|string|max:100',
-            'address.street_address' => 'nullable|string|max:255',
-            'address.country' => 'nullable|string|max:100',
+            'address' => 'nullable|json',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'tags' => 'nullable|json',
@@ -93,6 +89,12 @@ class UpdateServiceRequest extends FormRequest
         if ($this->has('requirements') && is_string($this->requirements)) {
             $this->merge([
                 'requirements' => json_decode($this->requirements, true) ?: []
+            ]);
+        }
+
+        if ($this->has('address') && is_string($this->address)) {
+            $this->merge([
+                'address' => json_decode($this->address, true) ?: null
             ]);
         }
 
