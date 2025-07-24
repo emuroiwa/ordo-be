@@ -330,4 +330,32 @@ class VendorVerificationService
 
         return $sent;
     }
+
+    /**
+     * Resend email verification for a vendor.
+     */
+    public function resendEmailVerification(VendorVerification $verification): void
+    {
+        $user = $verification->user;
+        
+        // Check if email is already verified
+        if ($user->email_verified_at || $verification->email_verified_at) {
+            throw new \InvalidArgumentException('Email is already verified.');
+        }
+
+        // Generate new token if needed
+        if (!$verification->email_verification_token) {
+            $verification->update([
+                'email_verification_token' => Str::random(60),
+            ]);
+        }
+
+        // Send email verification
+        $this->emailVerificationService->sendVerificationEmail($user, $verification);
+
+        // Update last attempt timestamp
+        $verification->update([
+            'updated_at' => now(),
+        ]);
+    }
 }

@@ -88,6 +88,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('vendor/verification')->name('vendor.verification.')->group(function () {
             Route::get('/status', [VendorVerificationController::class, 'status'])->name('status');
             Route::post('/start', [VendorVerificationController::class, 'start'])->name('start');
+            Route::post('/resend-email', [VendorVerificationController::class, 'resendEmailVerification'])->name('resend-email');
             Route::get('/requirements', [VendorVerificationController::class, 'requirements'])->name('requirements');
             Route::get('/documents', [VendorVerificationController::class, 'documents'])->name('documents');
             
@@ -107,10 +108,10 @@ Route::prefix('v1')->group(function () {
             ->name('vendor.verification.verify-email');
 
         // Service management routes (require vendor verification for vendors)
-        Route::prefix('services')->group(function () {
+        Route::prefix('services')->middleware('vendor.verified')->group(function () {
             Route::get('/my-services', [ServiceController::class, 'myServices']);
             Route::post('/', [ServiceController::class, 'store'])
-                ->middleware(['vendor.verified', 'throttle:60,1']); // 60 requests per minute
+                ->middleware('throttle:60,1'); // 60 requests per minute
             Route::get('/{id}/edit', [ServiceController::class, 'showById']); // For editing
             Route::put('/{id}', [ServiceController::class, 'update'])
                 ->middleware('throttle:60,1'); // 60 requests per minute
@@ -125,14 +126,18 @@ Route::prefix('v1')->group(function () {
             Route::get('/{booking}', [BookingController::class, 'show']);
             Route::put('/{booking}', [BookingController::class, 'update']);
             Route::post('/{booking}/cancel', [BookingController::class, 'cancel']);
-            Route::post('/{booking}/confirm', [BookingController::class, 'confirm']);
-            Route::post('/{booking}/in-progress', [BookingController::class, 'markInProgress']);
-            Route::post('/{booking}/complete', [BookingController::class, 'complete']);
             Route::post('/{booking}/reschedule', [BookingController::class, 'reschedule']);
+            
+            // Vendor-only booking actions (require verification)
+            Route::middleware('vendor.verified')->group(function () {
+                Route::post('/{booking}/confirm', [BookingController::class, 'confirm']);
+                Route::post('/{booking}/in-progress', [BookingController::class, 'markInProgress']);
+                Route::post('/{booking}/complete', [BookingController::class, 'complete']);
+            });
         });
 
-        // Availability routes
-        Route::prefix('availability')->group(function () {
+        // Availability routes (vendor-only - require verification)
+        Route::prefix('availability')->middleware('vendor.verified')->group(function () {
             Route::get('/', [AvailabilityController::class, 'index']);
             Route::post('/', [AvailabilityController::class, 'store']);
             Route::get('/{availability}', [AvailabilityController::class, 'show']);
@@ -143,15 +148,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/bulk-update', [AvailabilityController::class, 'bulkUpdate']);
         });
         
-        // Analytics routes
-        Route::prefix('analytics')->group(function () {
+        // Analytics routes (vendor-only - require verification)
+        Route::prefix('analytics')->middleware('vendor.verified')->group(function () {
             Route::get('/', [AnalyticsController::class, 'index']);
             Route::get('/summary', [AnalyticsController::class, 'summary']);
             Route::post('/export', [AnalyticsController::class, 'export']);
         });
         
-        // Earnings routes
-        Route::prefix('earnings')->group(function () {
+        // Earnings routes (vendor-only - require verification)
+        Route::prefix('earnings')->middleware('vendor.verified')->group(function () {
             Route::get('/', [EarningsController::class, 'index']);
             Route::get('/summary', [EarningsController::class, 'summary']);
             Route::get('/transactions', [EarningsController::class, 'transactions']);
@@ -162,11 +167,15 @@ Route::prefix('v1')->group(function () {
         // Reviews routes
         Route::prefix('reviews')->group(function () {
             Route::get('/', [ReviewsController::class, 'index']);
-            Route::get('/analytics', [ReviewsController::class, 'analytics']);
-            Route::get('/services', [ReviewsController::class, 'services']);
-            Route::post('/{review}/respond', [ReviewsController::class, 'respond']);
-            Route::put('/{review}/response', [ReviewsController::class, 'updateResponse']);
-            Route::delete('/{review}/response', [ReviewsController::class, 'deleteResponse']);
+            
+            // Vendor-only review actions (require verification)
+            Route::middleware('vendor.verified')->group(function () {
+                Route::get('/analytics', [ReviewsController::class, 'analytics']);
+                Route::get('/services', [ReviewsController::class, 'services']);
+                Route::post('/{review}/respond', [ReviewsController::class, 'respond']);
+                Route::put('/{review}/response', [ReviewsController::class, 'updateResponse']);
+                Route::delete('/{review}/response', [ReviewsController::class, 'deleteResponse']);
+            });
         });
         
         // Payment routes

@@ -68,7 +68,7 @@ class VendorVerificationController extends Controller
     /**
      * Verify email with token.
      */
-    public function verifyEmail(Request $request, string $id, string $token): JsonResponse
+    public function verifyEmail(string $id, string $token): JsonResponse
     {
         try {
             $verification = VendorVerification::findOrFail($id);
@@ -177,6 +177,14 @@ class VendorVerificationController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Verification process not started.',
+                ], 400);
+            }
+
+            // Check if identity verification is completed first
+            if (!$verification->isIdentityVerified()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please complete identity verification before uploading liveness photo.',
                 ], 400);
             }
 
@@ -391,5 +399,78 @@ class VendorVerificationController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Resend email verification.
+     */
+    public function resendEmailVerification(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user->isVendor()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only vendors can request email verification.',
+                ], 403);
+            }
+
+            // Check if email is already verified
+            if ($user->email_verified) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email is already verified.',
+                ], 400);
+            }
+
+            // Check rate limiting (max 3 emails per hour)
+            $cacheKey = "email_verification_resend:{$user->id}";
+            $attempts = cache()->get($cacheKey, 0);
+            
+            if ($attempts >= 3) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many email verification requests. Please wait before trying again.',
+                    'retry_after' => 3600, // 1 hour
+                ], 429);
+            }
+
+            // Get or create verification record
+            $verification = VendorVerification::where('user_id', $user->id)->first();
+            
+            if (!$verification) {
+                // Create verification if it doesn't exist
+                $verification = $this->verificationService->startVerification($user);
+            } else {
+                // Resend email using the verification service
+                $this->verificationService->resendEmailVerification($verification);
+            }
+
+            // Update rate limiting counter
+            cache()->put($cacheKey, $attempts + 1, 3600); // 1 hour TTL
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Verification email sent successfully.',
+                'data' => [
+                    'email' => $user->email,
+                    'expires_in' => '24 hours',
+                    'remaining_attempts' => 2 - $attempts,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to resend email verification', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send verification email. Please try again later.',
+            ], 500);
+        }
     }
 }

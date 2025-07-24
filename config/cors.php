@@ -24,6 +24,7 @@ return [
         env('FRONTEND_URL_ADDITIONAL', 'http://localhost:3001'),
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:3002',
     ]),
 
     'allowed_origins_patterns' => [],
